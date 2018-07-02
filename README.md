@@ -1,2 +1,3 @@
 ##Practical Machine Learning Course Project
-Project assignment.
+
+Repository containing files for Practical Machine Learning Course project.

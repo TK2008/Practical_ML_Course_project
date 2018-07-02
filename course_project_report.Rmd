@@ -1,0 +1,160 @@
+---
+title: "Practical Machine Learning project report"
+author: "Tom Zumer"
+date: "July 01 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+##Overview
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, our goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+
+##Load data
+We load the data and do some basic analisys to get a grasp on the data.
+
+```{r prepare, message=FALSE, warning=FALSE}
+library(caret)
+library(rattle)
+library(randomForest)
+library(rpart)
+library(parallel)
+library(doParallel)
+
+pml_training <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), 
+                  na.strings = c("NA","","#DIV/0!"), header = TRUE)
+pml_testing <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), 
+                 na.strings = c("NA","","#DIV/0!"), header = TRUE)
+```
+
+```{r}
+dim(pml_testing)
+dim(pml_training)
+```
+
+```{r echo=T, results='hide', message=FALSE, warning=FALSE}
+head(pml_training)
+str(pml_training)
+```
+
+```{r}
+unique(pml_training$classe)
+
+t <- table(pml_training$classe)
+t
+```
+
+##Cleaning data
+We need to clean the data because we need to remove all NA comlumn values for our model. We also remove columns 
+with low variance.
+
+```{r}
+nas <- is.na(pml_training)
+pml_training <- pml_training[,colSums(nas) == 0]
+pml_testing <- pml_testing[,colSums(nas) == 0]
+
+zeros <- nearZeroVar(pml_training)
+pml_training <- pml_training[,-zeros]
+pml_testing <- pml_testing[,-zeros]
+pml_training <- pml_training[,-(1:5)]
+pml_testing <- pml_testing[,-(1:5)]
+pml_testing$problem_id <- NULL
+```
+
+##Train and predict data
+We divide data into 60% for training set and 40% for testing set.
+
+```{r}
+set.seed(42)
+inTrain <- createDataPartition(pml_training$classe, p = 0.6, list = FALSE)
+training <- pml_training[inTrain,]
+testing <- pml_training[-inTrain,]
+```
+
+We will predict variable classes with the following methods: Decision Tree, Generalized Boosted Regression and Random Forest. Based on prediction accuracies we will select a model with the highest one and pick cross 
+validation to define resampling schema.
+
+##Decision Tree model
+```{r}
+trainCont <- trainControl(method = "cv", number = 10, allowParallel = TRUE)
+modfitDt <- train(classe ~ .,data = training, method = "rpart", trControl = trainCont)
+predDt = predict(modfitDt,testing)
+confusionMatrix(predDt, testing$classe)
+fancyRpartPlot(modfitDt$finalModel)
+```
+
+##Generalized Boosted Regression Model
+```{r}
+cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+modfitGbm <- train(classe ~ .,data = training, method = "gbm", trControl = trainCont)
+stopCluster(cluster)
+registerDoSEQ()
+predGbm = predict(modfitGbm,testing)
+confusionMatrix(predGbm, testing$classe)
+```
+
+##Random Forest model
+```{r}
+cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+modfitRf <- train(classe ~ .,data = training, method = "rf", trControl = trainCont)
+stopCluster(cluster)
+registerDoSEQ()
+predRf = predict(modfitRf,testing)
+confusionMatrix(predRf, testing$classe)
+```
+
+Based on prediction accuracy on all three models we can conclude that the best model for our purpuse is
+Random Forest with accuracy of 0.9966 and Out of Sample Error of 0.0034. But with such high accuracy we can 
+suspect that the model is overfitting.
+
+##Prediction with test data
+We now make prediction with our model on the original test data.
+
+```{r}
+finalpred <- predict(modfitRf, pml_testing)
+finalpred
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
